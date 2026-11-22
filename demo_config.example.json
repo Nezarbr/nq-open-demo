@@ -1,0 +1,8 @@
+{
+  "image": "ghcr.io/<github-user>/nq-open-demo:latest",
+  "volume_id": "<runpod network volume id holding /workspace/demo>",
+  "data_center": "EU-CZ-1",
+  "cpu_flavor": "cpu3c",
+  "vcpus": 8,
+  "auto_off_hours": 3
+}

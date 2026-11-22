@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NQ-open retrieval demo</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1d1b; --muted:#6b6b66; --line:#dcdcd6; --accent:#2f5d8a; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ececea; --muted:#9a9a94; --line:#33332f; --accent:#7fa8d6; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:380px; margin:12vh auto; padding:0 16px; }
+  h1 { font-size:1.3rem; margin:0 0 .3rem; }
+  p { color:var(--muted); margin:0 0 1.5rem; }
+  input, button { width:100%; box-sizing:border-box; font:inherit; padding:.7rem .8rem; border-radius:6px; }
+  input { border:1px solid var(--line); background:transparent; color:var(--fg); margin-bottom:.7rem; }
+  button { border:0; background:var(--accent); color:#fff; cursor:pointer; }
+  .bad { color:#b3261e; display:none; margin-top:.8rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>NQ-open retrieval demo</h1>
+  <p>Access is by invitation. Enter the password you were given.</p>
+  <form method="post" action="/login">
+    <input type="password" name="password" placeholder="Password" autocomplete="current-password" required autofocus>
+    <button type="submit">Enter</button>
+  </form>
+  <div class="bad" id="bad">Wrong password.</div>
+</main>
+<script>if (location.search.includes('bad=1')) document.getElementById('bad').style.display = 'block';</script>
+</body>
+</html>

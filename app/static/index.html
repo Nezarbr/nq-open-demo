@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NQ-open retrieval demo</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1d1b; --muted:#6b6b66; --line:#dcdcd6; --card:#ffffff; --accent:#2f5d8a; --mark:#fff1a8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161615; --fg:#ececea; --muted:#9a9a94; --line:#33332f; --card:#1f1f1d; --accent:#7fa8d6; --mark:#5c4f12; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui, sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:2rem 16px 4rem; }
+  h1 { font-size:1.35rem; margin:0; }
+  .sub { color:var(--muted); margin:.2rem 0 1.4rem; font-size:.95rem; }
+  form { display:flex; gap:.5rem; }
+  input { flex:1; min-width:0; font:inherit; padding:.7rem .8rem; border:1px solid var(--line); border-radius:6px;
+          background:var(--card); color:var(--fg); }
+  button { font:inherit; padding:.7rem 1.1rem; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  .examples { margin:.7rem 0 0; color:var(--muted); font-size:.9rem; }
+  .examples a { color:var(--accent); cursor:pointer; margin-right:.8rem; text-decoration:none; }
+  .status { color:var(--muted); font-size:.9rem; margin:1.2rem 0 .6rem; min-height:1.2em; }
+  .hit { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:.9rem 1rem; margin:.6rem 0; }
+  .meta { display:flex; justify-content:space-between; gap:1rem; color:var(--muted); font-size:.85rem; }
+  .path { color:var(--accent); font-weight:600; overflow-wrap:anywhere; }
+  .text { margin-top:.35rem; overflow-wrap:anywhere; }
+  mark { background:var(--mark); color:inherit; padding:0 1px; border-radius:2px; }
+  footer { color:var(--muted); font-size:.85rem; margin-top:2rem; border-top:1px solid var(--line); padding-top:1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>NQ-open retrieval demo</h1>
+  <p class="sub">Ask a factual question. The system searches 2.0M Wikipedia passages (hybrid dense + BM25),
+     then a fine-tuned cross-encoder reranks the top 50. Words from your question are highlighted.</p>
+  <form id="f">
+    <input id="q" maxlength="300" placeholder="e.g. who wrote the declaration of independence" autofocus>
+    <button id="go" type="submit">Search</button>
+  </form>
+  <div class="examples">Try:
+    <a>when did the eiffel tower open</a><a>who sang hotel california</a><a>how many players on a rugby team</a>
+  </div>
+  <div class="status" id="status"></div>
+  <div id="hits"></div>
+  <footer>Corpus: the Wikipedia pages behind 100k Natural Questions, not all of Wikipedia.
+    On held-out questions the answer is in the top 10 for 91% of questions.
+    Reranker: <a href="https://huggingface.co/NezarIn/nq-open-minilm-reranker">NezarIn/nq-open-minilm-reranker</a>.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const STOP = new Set('a an the of in on at to for is was were are who what when where which how did does do by and or from with as be'.split(' '));
+
+function highlighted(text, question) {
+  // build DOM nodes only (no innerHTML), so passage text can never inject markup
+  const words = question.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  const keep = words.filter(w => w.length > 2 && !STOP.has(w));
+  const frag = document.createDocumentFragment();
+  if (!keep.length) { frag.append(text); return frag; }
+  const esc = keep.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = new RegExp('\\b(' + esc.join('|') + ')\\b', 'giu');
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    frag.append(text.slice(last, m.index));
+    const mk = document.createElement('mark'); mk.textContent = m[0]; frag.append(mk);
+    last = m.index + m[0].length;
+  }
+  frag.append(text.slice(last));
+  return frag;
+}
+
+async function run(question) {
+  $('go').disabled = true; $('hits').replaceChildren(); $('status').textContent = 'Searching…';
+  try {
+    const r = await fetch('/search', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                       body: JSON.stringify({ question, k: 10 }) });
+    if (r.status === 401) { location.href = '/'; return; }
+    const d = await r.json();
+    if (!r.ok) { $('status').textContent = d.detail || ('Error ' + r.status); return; }
+    const t = d.timing_ms;
+    $('status').textContent = `${d.hits.length} passages in ${(t.total_ms / 1000).toFixed(2)} s ` +
+      `(encode ${t.encode_ms} ms · dense ${t.dense_ms} ms · BM25 ${t.bm25_ms} ms · rerank ${t.rerank_ms} ms)`;
+    for (const h of d.hits) {
+      const card = document.createElement('div'); card.className = 'hit';
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const path = document.createElement('span'); path.className = 'path'; path.textContent = `${h.rank}. ${h.path}`;
+      const sc = document.createElement('span');
+      sc.textContent = `score ${h.score.toFixed(2)} · was #${h.hybrid_rank} before rerank`;
+      meta.append(path, sc);
+      const tx = document.createElement('div'); tx.className = 'text'; tx.append(highlighted(h.text, question));
+      card.append(meta, tx); $('hits').append(card);
+    }
+  } catch (e) { $('status').textContent = 'Network error: ' + e.message; }
+  finally { $('go').disabled = false; }
+}
+
+$('f').addEventListener('submit', e => { e.preventDefault(); const q = $('q').value.trim(); if (q.length >= 3) run(q); });
+document.querySelectorAll('.examples a').forEach(a => a.addEventListener('click', () => { $('q').value = a.textContent; run(a.textContent); }));
+</script>
+</body>
+</html>
