@@ -2,7 +2,7 @@
 # except torch: CPU build of 2.8.0 for Linux (the Intel-Mac test used 2.2.2, the newest for that platform).
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.8.0+cpu
-transformers==4.51.0
+transformers==4.51.3        # 4.51.0 raises NameError init_empty_weights without accelerate (caught by CI)
 tokenizers==0.21.1
 safetensors==0.5.3
 huggingface_hub==0.30.1
